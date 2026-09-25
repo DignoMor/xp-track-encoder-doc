@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://track-encoder.dev/schemas/training-config.schema.json",
+  "title": "Track Encoder training configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "data", "architecture", "objective", "optimizer", "run"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset_path"],
+      "properties": {
+        "dataset_path": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["dilated_cnn"]}
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["reconstruction"]}
+      }
+    },
+    "optimizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["adamw"]}
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seed", "epochs", "output_dir", "device"],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0},
+        "epochs": {"type": "integer", "minimum": 1},
+        "output_dir": {"type": "string", "pattern": "^/"},
+        "device": {"const": "cuda"}
+      }
+    }
+  }
+}

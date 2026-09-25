@@ -1,0 +1,11 @@
+site_name: Track Encoder
+site_description: Researcher guide to preparing genomic elements and signal tracks for Track Encoder.
+theme:
+  name: readthedocs
+nav:
+  - Overview: index.md
+  - Inputs: inputs.md
+  - Preparation: preparation.md
+  - Training: training.md
+  - Embedding: embedding.md
+  - Outputs: outputs.md
