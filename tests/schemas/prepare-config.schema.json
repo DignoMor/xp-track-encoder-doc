@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://track-encoder.dev/schemas/prepare-config.schema.json",
+  "title": "Track Encoder preparation configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "regions", "fasta_path", "tracks", "orientation", "normalization", "split", "output_dir"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "regions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "type": {
+          "enum": ["bed3", "bed6", "bed6gene", "bed3gene", "narrowPeak", "TREbed", "bedGraph"]
+        },
+        "schema": {"type": "string", "pattern": "^/"}
+      },
+      "oneOf": [
+        {"required": ["type"], "not": {"required": ["schema"]}},
+        {"required": ["schema"], "not": {"required": ["type"]}}
+      ]
+    },
+    "fasta_path": {"type": "string", "pattern": "^/"},
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "transform"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "pattern": "^/"},
+          "transform": {"enum": ["none", "absolute"]}
+        }
+      }
+    },
+    "orientation": {"const": "genomic"},
+    "normalization": {"const": "joint_sum"},
+    "split": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": {"const": "provided"},
+        "path": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "output_dir": {"type": "string", "pattern": "^/"}
+  }
+}
