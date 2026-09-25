@@ -55,3 +55,8 @@ row-aligned genomic signals, reconstruction training with a dilated
 convolutional encoder, and embedding export. Planned architectures,
 objectives, region discovery, and biological evaluation are out of scope and
 are named as unsupported in the [Outputs](outputs.md) page.
+
+## Agent map
+
+Agents can start from the concise [llms.txt](llms.txt) link map, which points
+to the pages above without duplicating them.

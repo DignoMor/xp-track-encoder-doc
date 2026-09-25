@@ -1,0 +1,24 @@
+# Track Encoder
+
+Track Encoder learns compact fixed-length embeddings of genomic signal
+associated with researcher-selected genomic elements. The researcher supplies
+all inputs (genomic elements, signal tracks, split assignments, reference
+FASTA); preparation, reconstruction training (CUDA), and embedding export are
+the three supported stages. This file is a link map only; the pages below are
+the complete guidance.
+
+## Docs
+
+- [Overview](https://dignomor.github.io/xp-track-encoder-doc/)
+- [Inputs](https://dignomor.github.io/xp-track-encoder-doc/inputs/)
+- [Preparation](https://dignomor.github.io/xp-track-encoder-doc/preparation/)
+- [Training](https://dignomor.github.io/xp-track-encoder-doc/training/)
+- [Embedding](https://dignomor.github.io/xp-track-encoder-doc/embedding/)
+- [Outputs](https://dignomor.github.io/xp-track-encoder-doc/outputs/)
+
+## Install
+
+- [xp-track-encoder installation](https://github.com/haiyuan-yu-lab/xp-track-encoder)
+
+No input data is bundled with the docs. Examples use fictional names with
+clearly marked absolute-path placeholders.
