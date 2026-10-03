@@ -11,7 +11,8 @@ To avoid mistaking plans for capabilities: the current framework performs no
 region discovery, no peak discovery, no biological evaluation of element
 membership, no alternative architectures beyond the supported dilated
 convolutional encoder, and no objectives beyond full-window reconstruction
-with explicitly selected ordinary MSE (`objective.loss.type: mse`).
+with explicitly selected `mse` or `alignment_tolerant_mse`
+(`objective.loss.type`).
 Demonstration hyperparameters in the code repository verify mechanics only and
 are not endorsed defaults. Downstream analyses such as clustering or
 dimensionality reduction operate on exported embeddings outside this

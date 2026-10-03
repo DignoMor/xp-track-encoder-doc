@@ -30,12 +30,29 @@
       "properties": {
         "type": {"enum": ["reconstruction"]},
         "loss": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["type"],
-          "properties": {
-            "type": {"const": "mse"}
-          }
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": {
+                "type": {"const": "mse"}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": {
+                "type": {"const": "alignment_tolerant_mse"},
+                "max_shift_bp": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 50
+                }
+              }
+            }
+          ]
         }
       }
     },

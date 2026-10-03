@@ -56,16 +56,34 @@ linear upsampling, same-padded convolutions at each finer resolution, and one
 softmax applied jointly across channels and positions. Each reconstruction is
 therefore nonnegative and sums to one, matching the prepared signal domain.
 
-The fixed configuration must explicitly select ordinary mean squared error
-with `objective.loss.type` set to `mse`. There is no default for a missing
-selection, so existing configurations must be migrated before training or
-resume. The loss is full-window coordinate-wise mean squared error between
-the reconstructed and input jointly normalized signals, averaged over batch,
-channel, and position dimensions. The objective exposes total loss plus named
-components and metrics through one interface; the generic trainer
-backpropagates only the total loss and records every named component and
-metric each epoch. The saved encoder and exported embeddings never depend on
-the decoder: resumable checkpoints store objective state opaquely, and the
+The fixed configuration must explicitly select a reconstruction loss through
+`objective.loss.type`. Choose `mse` for full-window coordinate-wise mean
+squared error averaged over batch, channel, and position dimensions. Choose
+`alignment_tolerant_mse` to allow a bounded shared translation when comparing
+each reconstructed element with its target. Missing loss selection has no
+default, so existing configurations must be migrated before training or
+resume.
+
+The alignment-tolerant loss uses `objective.loss.max_shift_bp`, an optional
+fixed radius that defaults to 50 bp. It must be an integer at least zero and
+strictly smaller than the dataset window length. If the 50 bp default is too
+large for a short window, set a smaller radius; the value is never clamped.
+Radius zero is equivalent to ordinary MSE. The loss compares offsets from
+`-max_shift_bp` through `+max_shift_bp`, independently choosing one offset
+per element and sharing it across channels. Positive offset moves reconstructed
+signal toward increasing position indices. Zero-padded extended comparisons
+retain all target and reconstructed signal at window edges and divide by the
+original channel count times window length. The selected loss is no greater
+than unaligned MSE within floating-point tolerance because offset zero is
+included. This loss relaxes reconstruction pressure on placement inside the
+radius; it does not guarantee stable embeddings for translated inputs.
+
+Both loss choices and the effective radius are fixed experiment configuration
+and cannot be placed in `hp.json`. The objective exposes selected loss plus
+named components and metrics through one interface; the generic trainer
+backpropagates only the selected total loss and records the reported metrics
+each epoch. The saved encoder and exported embeddings never depend on the
+decoder: resumable checkpoints store objective state opaquely, and the
 encoder-only inference artifact contains no decoder or optimizer state.
 
 ## Two configuration documents
@@ -124,13 +142,31 @@ training configuration schema.
 ```
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
-`reconstruction`, `objective.loss.type` is explicitly `mse`, and
-`optimizer.type` is always `adamw` in this release. Loss choice is fixed run
-configuration; it cannot be set in `hp.json`. `run.device` is always `cuda`:
-CPU training is not supported.
+`reconstruction`, and `optimizer.type` is always `adamw` in this release.
+`objective.loss.type` must explicitly be `mse` or
+`alignment_tolerant_mse`; the latter may include a fixed `max_shift_bp`.
+Neither loss choice nor radius can be set in `hp.json`. `run.device` is always
+`cuda`: CPU training is not supported.
 `run.epochs` is the total epoch budget, and `run.seed` drives deterministic
 batching and algorithms. Unknown fields are rejected, so a misspelled field
 fails early rather than being ignored.
+
+To select alignment-tolerant reconstruction, replace the example's
+`objective` value with:
+
+```json
+{
+  "type": "reconstruction",
+  "loss": {
+    "type": "alignment_tolerant_mse",
+    "max_shift_bp": 50
+  }
+}
+```
+
+Omit `max_shift_bp` to use 50 bp. Set it to zero to recover ordinary MSE;
+for every dataset, the effective radius must remain smaller than its window
+length.
 
 ### Tunable hyperparameters
 
@@ -186,7 +222,8 @@ row without a traceback by default; rerun with `--debug` for the full
 traceback.
 
 A fresh run records `config.json`, `hp.json`, the resolved experiment
-configuration (`resolved_experiment.json`), and the software environment
+configuration (`resolved_experiment.json`, including effective
+`max_shift_bp`), and the software environment
 (`environment.json`: package, Python, PyTorch, CUDA, and genomic-element
 library versions, GPU model, deterministic-algorithm setting, and Git commit
 when available).
@@ -198,8 +235,8 @@ Each epoch appends one record to `metrics.jsonl` with the epoch number,
 `train_unaligned_reconstruction_mse`, and
 `validation_unaligned_reconstruction_mse`, plus current and best checkpoint
 identities and elapsed epoch time. The selected loss and ordinary unaligned
-MSE are reported separately; they have equal values while `mse` is the only
-supported choice. Validation checkpoint selection uses
+MSE are reported separately. They are equal for `mse`; aligned selected loss
+can be lower for `alignment_tolerant_mse`. Validation checkpoint selection uses
 `validation_reconstruction_loss`. Two resumable checkpoints are maintained
 atomically, so an interrupted write cannot corrupt recoverable state:
 
@@ -212,8 +249,9 @@ After the epoch budget completes, the best validation checkpoint is loaded
 once and evaluated on the test split. `summary.json` records
 `best_validation_reconstruction_loss`, `test_reconstruction_loss`, and
 `test_unaligned_reconstruction_mse`, alongside the epoch count. Selected loss
-and unaligned MSE are separate fields and are equal for `mse`; test metrics do
-not affect model selection. An encoder-only inference artifact
+and unaligned MSE are separate fields; they are equal for `mse`, while the
+alignment-tolerant value can be lower. Test metrics do not affect model
+selection. An encoder-only inference artifact
 (`encoder.pt` plus its `encoder.json` manifest) is derived from `best.pt`;
 it carries the encoder state, content identity, architecture, channels,
 window length, normalization, and embedding dimension needed for compatible
@@ -237,7 +275,9 @@ same locked software and GPU environment. The configured epoch count remains
 the total target — resuming toward `epochs: 40` from epoch 25 trains epochs
 26 through 40, it does not add 40 more. A missing checkpoint, a changed
 dataset, or any edited configuration or hyperparameter value fails with a
-contextual error instead of silently starting a different experiment.
+contextual error instead of silently starting a different experiment. Resume
+identity includes the resolved effective loss radius, including the default
+50 bp, so changing the loss or radius is incompatible.
 
 ## Alpha limits
 
@@ -246,7 +286,7 @@ architecture (`dilated_cnn`) under one objective (full-window
 reconstruction) with one optimizer (`adamw`) through a transparent CUDA-only
 loop without mixed precision. There is no CPU training, no distributed
 training, no hyperparameter search orchestration, and no early stopping. Masking,
-contrastive or generative latent formulations, shift-aware reconstruction,
+contrastive or generative latent formulations, embedding-stability evaluation,
 and downstream biological evaluation are out of scope, as summarized under
 [Outputs](outputs.md). Start from a verified processed dataset (see
 [Preparation](preparation.md)) and keep its identity stable: resume and
