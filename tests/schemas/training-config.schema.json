@@ -26,9 +26,17 @@
     "objective": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type"],
+      "required": ["type", "loss"],
       "properties": {
-        "type": {"enum": ["reconstruction"]}
+        "type": {"enum": ["reconstruction"]},
+        "loss": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {"const": "mse"}
+          }
+        }
       }
     },
     "optimizer": {

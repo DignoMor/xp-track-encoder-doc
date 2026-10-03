@@ -56,8 +56,11 @@ linear upsampling, same-padded convolutions at each finer resolution, and one
 softmax applied jointly across channels and positions. Each reconstruction is
 therefore nonnegative and sums to one, matching the prepared signal domain.
 
-The loss is full-window coordinate-wise mean squared error between the
-reconstructed and input jointly normalized signals, averaged over batch,
+The fixed configuration must explicitly select ordinary mean squared error
+with `objective.loss.type` set to `mse`. There is no default for a missing
+selection, so existing configurations must be migrated before training or
+resume. The loss is full-window coordinate-wise mean squared error between
+the reconstructed and input jointly normalized signals, averaged over batch,
 channel, and position dimensions. The objective exposes total loss plus named
 components and metrics through one interface; the generic trainer
 backpropagates only the total loss and records every named component and
@@ -103,7 +106,10 @@ training configuration schema.
     "type": "dilated_cnn"
   },
   "objective": {
-    "type": "reconstruction"
+    "type": "reconstruction",
+    "loss": {
+      "type": "mse"
+    }
   },
   "optimizer": {
     "type": "adamw"
@@ -118,8 +124,10 @@ training configuration schema.
 ```
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
-`reconstruction`, and `optimizer.type` is always `adamw` in the current
-framework. `run.device` is always `cuda`: CPU training is not supported.
+`reconstruction`, `objective.loss.type` is explicitly `mse`, and
+`optimizer.type` is always `adamw` in this release. Loss choice is fixed run
+configuration; it cannot be set in `hp.json`. `run.device` is always `cuda`:
+CPU training is not supported.
 `run.epochs` is the total epoch budget, and `run.seed` drives deterministic
 batching and algorithms. Unknown fields are rejected, so a misspelled field
 fails early rather than being ignored.
@@ -185,9 +193,14 @@ when available).
 
 ## Checkpoints, metrics, and the one-time test
 
-Each epoch appends one record to `metrics.jsonl` with the epoch number, mean
-training and validation reconstruction losses, current and best checkpoint
-identities, and elapsed epoch time. Two resumable checkpoints are maintained
+Each epoch appends one record to `metrics.jsonl` with the epoch number,
+`train_reconstruction_loss`, `validation_reconstruction_loss`,
+`train_unaligned_reconstruction_mse`, and
+`validation_unaligned_reconstruction_mse`, plus current and best checkpoint
+identities and elapsed epoch time. The selected loss and ordinary unaligned
+MSE are reported separately; they have equal values while `mse` is the only
+supported choice. Validation checkpoint selection uses
+`validation_reconstruction_loss`. Two resumable checkpoints are maintained
 atomically, so an interrupted write cannot corrupt recoverable state:
 
 | Path | Meaning |
@@ -196,9 +209,11 @@ atomically, so an interrupted write cannot corrupt recoverable state:
 | `best.pt` | Updated atomically only when validation reconstruction loss improves; the model is selected by validation loss without consulting the test split |
 
 After the epoch budget completes, the best validation checkpoint is loaded
-once and evaluated on the test split. That single held-out score is written
-to `summary.json` alongside the best validation loss and epoch count, and it
-does not affect model selection. An encoder-only inference artifact
+once and evaluated on the test split. `summary.json` records
+`best_validation_reconstruction_loss`, `test_reconstruction_loss`, and
+`test_unaligned_reconstruction_mse`, alongside the epoch count. Selected loss
+and unaligned MSE are separate fields and are equal for `mse`; test metrics do
+not affect model selection. An encoder-only inference artifact
 (`encoder.pt` plus its `encoder.json` manifest) is derived from `best.pt`;
 it carries the encoder state, content identity, architecture, channels,
 window length, normalization, and embedding dimension needed for compatible
