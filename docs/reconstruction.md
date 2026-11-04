@@ -25,7 +25,7 @@ directory. Held-out scores remain the ones training recorded in
   document, or training dataset path is needed.
 - **A processed dataset directory** holding `dataset.json`, `signals.npy`,
   the region table, and `split.npy`. It may be the checkpoint's training
-  dataset or a separately prepared dataset that fits the model (see
+  dataset or a separately prepared dataset that fits the checkpoint (see
   [Compatibility](#compatibility)).
 - **A boolean mask** selecting the element examples to reconstruct (see
   [Select element examples](#select-element-examples)).
@@ -104,9 +104,9 @@ recomputed over its content must match the recorded identity, so a changed or
 hand-edited dataset is refused even at an unchanged path.
 
 The dataset need not be the checkpoint's training dataset. Its channel count
-and window length must match the model rebuilt from the checkpoint; a mismatch
-is reported by field with the expected (model) and actual (dataset) values
-before any inference. The manifest records the checkpoint's
+and window length must match the encoder input the full checkpoint was trained
+for; a mismatch is reported by field with the expected (checkpoint) and actual
+(dataset) values before any inference. The manifest records the checkpoint's
 `training_dataset_identity` and `matches_training_dataset`, which is `true`
 only when the dataset identity equals it.
 
@@ -228,6 +228,7 @@ output destination, dataset, mask, device, checkpoint, then fit.
 | Problem | Field | Message begins with |
 | --- | --- | --- |
 | Nonempty output destination | `output_dir` | `Output directory is not empty` |
+| Dataset schema version is not `1` | `schema_version` | `1 was expected` |
 | Dataset content changed since preparation | `identity` | `Dataset content identity mismatch` |
 | Mask dtype is not `bool` | `mask` | `Mask must have NumPy bool dtype` |
 | Mask shape or length does not fit the dataset | `mask` | `Mask shape ... does not match dataset rows` |
@@ -241,9 +242,11 @@ output destination, dataset, mask, device, checkpoint, then fit.
 | Checkpoint file does not exist | `checkpoint` | `Full checkpoint file not found` |
 | File is not a checkpoint written by `train` | `checkpoint` | `Not a full checkpoint written by train` |
 | Checkpoint predates the current contract | first missing field, such as `objective.loss.type` | `Checkpoint is missing current-contract content` |
+| `mse` checkpoint carries an alignment radius | `objective.loss.max_shift_bp` | `Checkpoint loss settings are not current-contract: mse takes no max_shift_bp` |
+| Saved state does not fit the checkpoint's resolved architecture | `encoder_state` or `objective_state` | `Saved state does not fit the checkpoint's resolved architecture` |
 | Objective type unknown | `objective.type` | `Unsupported objective type` |
 | Objective cannot reconstruct | `objective.type` | `Objective type ... does not support reconstruction` |
-| Channel count or window length mismatch | `num_channels` or `window_length` | `Dataset num_channels does not match checkpoint model: expected 2, got 3` (expected is the model's value, got is the dataset's) |
+| Channel count or window length mismatch | `num_channels` or `window_length` | `Dataset num_channels does not match the full checkpoint: expected 2, got 3` (expected is the checkpoint's value, got is the dataset's) |
 
 The three encoder-artifact and directory errors all explain that encoder
 artifacts carry no decoder and ask for a full checkpoint file written by
