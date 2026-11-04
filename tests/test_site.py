@@ -36,11 +36,12 @@ EXPECTED_PAGES = [
     "preparation.md",
     "training.md",
     "embedding.md",
+    "reconstruction.md",
     "outputs.md",
 ]
 
 # llms.txt must link to each published guidance page (root = overview).
-LLMS_PAGE_PATHS = ["", "inputs/", "preparation/", "training/", "embedding/", "outputs/"]
+LLMS_PAGE_PATHS = ["", "inputs/", "preparation/", "training/", "embedding/", "reconstruction/", "outputs/"]
 
 
 class LinkCollector(HTMLParser):
@@ -106,6 +107,7 @@ def test_build_produces_all_nav_pages():
         site / "preparation" / "index.html",
         site / "training" / "index.html",
         site / "embedding" / "index.html",
+        site / "reconstruction" / "index.html",
         site / "outputs" / "index.html",
     ]
     for page in expected_html:
@@ -200,6 +202,7 @@ def test_llms_txt_is_concise_link_map():
     assert "track-encoder prepare" not in text, "llms.txt must not duplicate command manuals"
     assert "track-encoder train" not in text, "llms.txt must not duplicate command manuals"
     assert "track-encoder embed" not in text, "llms.txt must not duplicate command manuals"
+    assert "track-encoder reconstruct" not in text, "llms.txt must not duplicate command manuals"
     lines = text.splitlines()
     assert len(lines) <= 80, f"llms.txt must stay concise (found {len(lines)} lines)"
     assert len(text) <= 4000, f"llms.txt must stay concise (found {len(text)} chars)"
@@ -257,7 +260,12 @@ def test_vendored_schemas_match_upstream_when_available():
     available = [root for root in upstream_roots if root.is_dir()]
     if not available:
         pytest.skip("workspace schemas not available (CI); vendored copies are authoritative")
-    for name in ["prepare-config.schema.json", "training-config.schema.json", "dilated-cnn-hp.schema.json"]:
+    for name in [
+        "prepare-config.schema.json",
+        "training-config.schema.json",
+        "dilated-cnn-hp.schema.json",
+        "reconstruction.schema.json",
+    ]:
         vendored = json.loads((SCHEMAS_DIR / name).read_text(encoding="utf-8"))
         for root in available:
             upstream = root / name
@@ -325,6 +333,57 @@ def test_cli_and_outputs_documented_in_built_html():
     index_html = (site / "index.html").read_text(encoding="utf-8")
     for term in ["genomic element", "signal track", "embedding"]:
         assert term in index_html, f"overview page is missing domain term {term!r}"
+
+
+def test_reconstruction_command_documented_in_built_html():
+    site = build_site()
+    html = (site / "reconstruction" / "index.html").read_text(encoding="utf-8")
+    for snippet in [
+        "track-encoder reconstruct --dataset",
+        "<code>--checkpoint</code>",
+        "<code>--mask</code>",
+        "<code>--output</code>",
+        "<code>--device</code>",
+        "<code>--batch-size</code>",
+        "<code>--debug</code>",
+        "<code>reconstructions.npy</code>",
+        "<code>reconstruction.json</code>",
+        "<code>best.pt</code>",
+    ]:
+        assert snippet in html, f"built reconstruction page is missing {snippet!r}"
+    for term in ["full checkpoint", "encoder artifact", "element example", "dataset identity"]:
+        assert term in html, f"reconstruction page is missing glossary term {term!r}"
+
+
+def test_reconstruction_page_names_every_manifest_field():
+    site = build_site()
+    html = (site / "reconstruction" / "index.html").read_text(encoding="utf-8")
+    schema = _load_schema("reconstruction.schema.json")
+    missing = [field for field in schema["required"] if f"<code>{field}</code>" not in html]
+    assert not missing, f"reconstruction page does not describe manifest fields: {missing}"
+
+
+def test_illustrative_reconstruction_manifest_validates_after_substitution():
+    blocks = _extract_json_blocks(DOCS / "reconstruction.md")
+    raw = next((block for block in blocks if '"row_alignment"' in block), None)
+    assert raw is not None, "reconstruction.md must contain an illustrative reconstruction.json"
+    assert "/absolute/path/to/" in raw, "manifest must use clearly marked absolute-path placeholders"
+    manifest = json.loads(raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
+    _validate_against_schema(manifest, _load_schema("reconstruction.schema.json"), "reconstruction manifest")
+    assert "northwood" in manifest["checkpoint_file"], "reconstruction example must use fictional names"
+    assert manifest["shape"][0] == len(manifest["row_indices"]) == len(manifest["row_splits"])
+    assert manifest["row_indices"] == sorted(manifest["row_indices"]), "rows are written in ascending order"
+    assert manifest["shape"][1] == len(manifest["channels"])
+    assert manifest["shape"][2] == manifest["window_length"]
+
+
+def test_embedding_page_explains_encoder_artifacts_cannot_reconstruct():
+    site = build_site()
+    html = (site / "embedding" / "index.html").read_text(encoding="utf-8")
+    assert "../reconstruction/" in html, "embedding page must link to the reconstruction page"
+    assert "cannot produce reconstructions" in html, (
+        "embedding page must explain that encoder artifacts cannot produce reconstructions"
+    )
 
 
 def test_no_bundled_input_data():

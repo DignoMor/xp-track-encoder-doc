@@ -26,6 +26,17 @@ order, the window length, `orientation` (`genomic`), `normalization`
 (`joint_sum`), the embedding dimension, and the SHA-256 encoder identity
 computed over canonical encoder metadata plus the state-file bytes.
 
+### Why an encoder artifact cannot reconstruct
+
+The encoder artifact is deliberately decoder-independent: it holds only the
+encoder, so it maps element examples to embeddings but
+cannot produce reconstructions. The reconstruction decoder belongs to the training objective
+and is saved only in the full checkpoints (`best.pt`, `latest.pt`). To see
+what a trained model reconstructs for selected element examples, pass a full
+checkpoint file to `track-encoder reconstruct`, described in
+[Reconstruction](reconstruction.md); passing `encoder.json`, `encoder.pt`, or
+the run directory there is refused.
+
 ## Run export
 
 Pass the dataset directory, the encoder artifact location, and the output
