@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://track-encoder.dev/schemas/reconstruction.schema.json",
+  "title": "Track Encoder reconstruction output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "reconstructions_file",
+    "regions",
+    "row_alignment",
+    "row_indices",
+    "row_splits",
+    "channels",
+    "orientation",
+    "normalization",
+    "window_length",
+    "shape",
+    "dtype",
+    "dataset_identity",
+    "checkpoint_file",
+    "checkpoint_identity",
+    "training_dataset_identity",
+    "matches_training_dataset",
+    "objective_type",
+    "loss_type",
+    "max_shift_bp",
+    "device",
+    "package_version",
+    "source_revision"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "reconstructions_file": {"type": "string", "pattern": "^/"},
+    "regions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "type": {"type": "string", "minLength": 1},
+        "schema": {"type": "string", "pattern": "^/"}
+      },
+      "oneOf": [
+        {"required": ["type"], "not": {"required": ["schema"]}},
+        {"required": ["schema"], "not": {"required": ["type"]}}
+      ]
+    },
+    "row_alignment": {"const": "selected_processed_dataset_rows"},
+    "row_indices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "integer", "minimum": 0}
+    },
+    "row_splits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"enum": ["train", "validation", "test"]}
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "orientation": {"const": "genomic"},
+    "normalization": {"const": "joint_sum"},
+    "window_length": {"type": "integer", "minimum": 1},
+    "shape": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 1},
+        {"type": "integer", "minimum": 1},
+        {"type": "integer", "minimum": 1}
+      ],
+      "minItems": 3,
+      "items": false
+    },
+    "dtype": {"const": "float32"},
+    "dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_file": {"type": "string", "pattern": "^/"},
+    "checkpoint_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "training_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "matches_training_dataset": {"type": "boolean"},
+    "objective_type": {"enum": ["reconstruction"]},
+    "loss_type": {"enum": ["mse", "alignment_tolerant_mse"]},
+    "max_shift_bp": {"type": ["integer", "null"], "minimum": 0},
+    "device": {"enum": ["cuda", "cpu"]},
+    "package_version": {"type": "string", "minLength": 1},
+    "source_revision": {
+      "anyOf": [
+        {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"loss_type": {"const": "alignment_tolerant_mse"}}},
+      "then": {"properties": {"max_shift_bp": {"type": "integer"}}},
+      "else": {"properties": {"max_shift_bp": {"type": "null"}}}
+    }
+  ]
+}
