@@ -1,9 +1,11 @@
 # Outputs
 
-Track Encoder produces three artifact families: processed datasets (see
-[Preparation](preparation.md)), training runs with resumable checkpoints and
-an encoder-only artifact (see [Training](training.md)), and row-aligned
-embedding exports (see [Embedding](embedding.md)).
+Track Encoder produces four artifact families: processed datasets (see
+[Preparation](preparation.md)), training runs with resumable full checkpoints
+and an encoder-only artifact (see [Training](training.md)), row-aligned
+embedding exports (see [Embedding](embedding.md)), and reconstructions of
+selected element examples from a full checkpoint (see
+[Reconstruction](reconstruction.md)).
 
 ## What the alpha framework does not do
 

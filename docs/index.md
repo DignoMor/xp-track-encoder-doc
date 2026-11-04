@@ -25,7 +25,9 @@ split assignments, and carries them through three stages:
 The [Inputs](inputs.md) page describes everything you must supply. The
 [Preparation](preparation.md) page walks from those inputs to a verified
 processed dataset. Training and embedding guidance follows the same journey;
-see [Training](training.md) and [Embedding](embedding.md).
+see [Training](training.md) and [Embedding](embedding.md). To inspect what a
+trained model retains, [Reconstruction](reconstruction.md) reconstructs
+selected element examples from a full checkpoint.
 
 ## What you must supply
 
@@ -48,13 +50,14 @@ instructions:
 
 Training runs on CUDA, so choose a CUDA-capable machine before preparing a
 run. Preparation and embedding export do not train models, but the dataset you
-prepare here is consumed by CUDA training.
+prepare here is consumed by CUDA training. Reconstruction runs on CUDA or CPU.
 
 ## Current scope
 
 This site describes only the implemented alpha framework: preparation of
 row-aligned genomic signals, reconstruction training with a dilated
-convolutional encoder, and embedding export. Planned architectures,
+convolutional encoder, embedding export, and reconstruction of selected
+element examples from full checkpoints. Planned architectures,
 objectives, region discovery, and biological evaluation are out of scope and
 are named as unsupported in the [Outputs](outputs.md) page.
 
