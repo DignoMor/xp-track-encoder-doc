@@ -1,6 +1,6 @@
 # Track Encoder
 
-Current release: 0.1.0a1 (alpha).
+Current release: 0.1.0a2 (alpha).
 
 Track Encoder learns compact fixed-length embeddings of genomic signal
 associated with researcher-selected genomic elements. The researcher supplies
