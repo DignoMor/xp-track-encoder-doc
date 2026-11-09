@@ -1,10 +1,14 @@
 # Training
 
-Training consumes a prepared dataset and learns a reconstruction model. It
+Training learns a reconstruction model from two processed datasets: it fits
+a **train dataset** and selects its full checkpoint on a **val dataset**. It
 starts from the processed numeric interface described in
-[Preparation](preparation.md) and never invokes preparation: channel count,
-window length, and split assignments all come from the dataset manifest, and
-the dataset identity is checked before any module is built.
+[Preparation](preparation.md) and never invokes preparation: channel count and
+window length come from the train dataset's manifest, and both dataset
+identities are checked before any module is built. Training uses every row of
+the train dataset and every row of the val dataset, and performs no test
+evaluation; scoring a full checkpoint on a test dataset is a separate step,
+described in [Evaluation](evaluation.md).
 
 Training runs on CUDA only. Choose a CUDA-capable machine before launching a
 run; there is no supported CPU training path.
@@ -93,8 +97,8 @@ ownership. Hyperparameters never override fixed configuration, unknown fields
 are rejected in both documents, and every path is absolute — commands use
 paths exactly as written.
 
-- `config.json` declares choices held fixed for the run: the processed
-  dataset, architecture type, objective type, optimizer type, seed, epoch
+- `config.json` declares choices held fixed for the run: the train and val
+  datasets, architecture type, objective type, optimizer type, seed, epoch
   budget, output destination, and CUDA device.
 - `hp.json` supplies one concrete set of tunable values — never a search
   space — under disjoint `architecture`, `objective`, `optimizer`, and
@@ -116,9 +120,10 @@ training configuration schema.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "data": {
-    "dataset_path": "/absolute/path/to/northwood_dataset"
+    "train_dataset_path": "/absolute/path/to/northwood_prepared/train",
+    "val_dataset_path": "/absolute/path/to/northwood_prepared/val"
   },
   "architecture": {
     "type": "dilated_cnn"
@@ -140,6 +145,17 @@ training configuration schema.
   }
 }
 ```
+
+`data.train_dataset_path` names the train dataset and `data.val_dataset_path`
+the val dataset, usually the `train/` and `val/` directories of one
+preparation. Because a dataset's role is set here rather than in the dataset,
+swapping the val dataset is a path change. The val dataset must agree with the
+train dataset on `channels`, `window_length`, `orientation`, `normalization`,
+and `dtype`; a disagreement is rejected naming that field. Both paths may name
+the same dataset, for example for an overfitting check. The configuration's
+`schema_version` is `2`: a configuration written for earlier releases, with
+schema version `1` and a single dataset path, is rejected by field and must
+be rewritten with both paths.
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
 `reconstruction`, and `optimizer.type` is always `adamw` in this release.
@@ -214,9 +230,9 @@ track-encoder train --config /absolute/path/to/config.json --hp /absolute/path/t
 ```
 
 The command refuses a nonempty output directory: training never merges into
-or overwrites existing outputs. Training rows are shuffled by a seeded
-generator while validation and test rows keep dataset order, and incomplete
-final batches are never dropped. On invalid data or configuration the command
+or overwrites existing outputs. Train dataset rows are shuffled by a seeded
+generator while val dataset rows keep dataset order, and incomplete final
+batches are never dropped. On invalid data or configuration the command
 exits nonzero and reports the responsible document, field, track, or region
 row without a traceback by default; rerun with `--debug` for the full
 traceback.
@@ -228,35 +244,34 @@ configuration (`resolved_experiment.json`, including effective
 library versions, GPU model, deterministic-algorithm setting, and Git commit
 when available).
 
-## Checkpoints, metrics, and the one-time test
+## Checkpoints, metrics, and the run summary
 
 Each epoch appends one record to `metrics.jsonl` with the epoch number,
-`train_reconstruction_loss`, `validation_reconstruction_loss`,
+`train_reconstruction_loss`, `val_reconstruction_loss`,
 `train_unaligned_reconstruction_mse`, and
-`validation_unaligned_reconstruction_mse`, plus current and best checkpoint
-identities and elapsed epoch time. The selected loss and ordinary unaligned
-MSE are reported separately. They are equal for `mse`; aligned selected loss
-can be lower for `alignment_tolerant_mse`. Validation checkpoint selection uses
-`validation_reconstruction_loss`. Two resumable checkpoints are maintained
-atomically, so an interrupted write cannot corrupt recoverable state:
+`val_unaligned_reconstruction_mse`, plus current and best checkpoint
+identities and elapsed epoch time. The `train_` values are computed over the
+train dataset and the `val_` values over the val dataset. The selected loss
+and ordinary unaligned MSE are reported separately. They are equal for `mse`;
+aligned selected loss can be lower for `alignment_tolerant_mse`. Checkpoint
+selection uses `val_reconstruction_loss`. Two resumable full checkpoints are
+maintained atomically, so an interrupted write cannot corrupt recoverable
+state:
 
 | Path | Meaning |
 | --- | --- |
-| `latest.pt` | Replaced atomically after every epoch; holds encoder, objective, and optimizer state, completed epoch, random-number-generator state, original and resolved configurations, and the processed-dataset identity |
-| `best.pt` | Updated atomically only when validation reconstruction loss improves; the model is selected by validation loss without consulting the test split |
+| `latest.pt` | Replaced atomically after every epoch; holds encoder, objective, and optimizer state, completed epoch, random-number-generator state, best val loss so far, original and resolved configurations, and the train and val dataset identities |
+| `best.pt` | Updated atomically only when val reconstruction loss improves; the full checkpoint selected on the val dataset |
 
-After the epoch budget completes, the best validation checkpoint is loaded
-once and evaluated on the test split. `summary.json` records
-`best_validation_reconstruction_loss`, `test_reconstruction_loss`, and
-`test_unaligned_reconstruction_mse`, alongside the epoch count. Selected loss
-and unaligned MSE are separate fields; they are equal for `mse`, while the
-alignment-tolerant value can be lower. Test metrics do not affect model
-selection. An encoder-only inference artifact
-(`encoder.pt` plus its `encoder.json` manifest) is derived from `best.pt`;
-it carries the encoder state, content identity, architecture, channels,
-window length, normalization, and embedding dimension needed for compatible
-inference. The trained encoder feeds [Embedding](embedding.md), and the full
-artifact family is summarized under [Outputs](outputs.md).
+`summary.json` records only `best_val_reconstruction_loss` and `epochs`.
+Training reports no test metrics: to score `best.pt` on your test dataset,
+run `track-encoder evaluate` after training (see [Evaluation](evaluation.md)).
+An encoder-only inference artifact (`encoder.pt` plus its `encoder.json`
+manifest) is derived from `best.pt`; it carries the encoder state, content
+identity, architecture, channels, window length, normalization, and embedding
+dimension needed for compatible inference. The trained encoder feeds
+[Embedding](embedding.md), and the full artifact family is summarized under
+[Outputs](outputs.md).
 
 ## Resume an interrupted run
 
@@ -267,15 +282,19 @@ configuration and hyperparameters plus the checkpoint to continue from:
 track-encoder train --config /absolute/path/to/config.json --hp /absolute/path/to/hp.json --resume /absolute/path/to/northwood_run/latest.pt
 ```
 
-Resume compatibility is exact: the checkpoint's dataset identity, original
-fixed configuration, original hyperparameters, and resolved experiment must
+Resume compatibility is exact: the checkpoint's train and val dataset
+identities, original fixed configuration, original hyperparameters, and resolved experiment must
 all match the supplied documents, and random-number-generator state is
 restored so continuation agrees numerically with an uninterrupted run in the
 same locked software and GPU environment. The configured epoch count remains
 the total target — resuming toward `epochs: 40` from epoch 25 trains epochs
 26 through 40, it does not add 40 more. A missing checkpoint, a changed
-dataset, or any edited configuration or hyperparameter value fails with a
-contextual error instead of silently starting a different experiment. Resume
+train or val dataset, or any edited configuration or hyperparameter value
+fails with a contextual error instead of silently starting a different
+experiment; a changed dataset is reported by its own field,
+`data.train_dataset_path` or `data.val_dataset_path`. Checkpoints written by
+earlier releases record a single dataset identity and are rejected by field
+`train_dataset_identity`, with no fallback. Resume
 identity includes the resolved effective loss radius, including the default
 50 bp, so changing the loss or radius is incompatible.
 
@@ -288,6 +307,6 @@ loop without mixed precision. There is no CPU training, no distributed
 training, no hyperparameter search orchestration, and no early stopping. Masking,
 contrastive or generative latent formulations, embedding-stability evaluation,
 and downstream biological evaluation are out of scope, as summarized under
-[Outputs](outputs.md). Start from a verified processed dataset (see
-[Preparation](preparation.md)) and keep its identity stable: resume and
+[Outputs](outputs.md). Start from verified processed datasets (see
+[Preparation](preparation.md)) and keep their identities stable: resume and
 inference compare dataset identities rather than trusting paths alone.

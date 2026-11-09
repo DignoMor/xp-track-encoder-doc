@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://track-encoder.dev/schemas/evaluation.schema.json",
+  "title": "Track Encoder evaluation output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dataset_identity",
+    "checkpoint_file",
+    "checkpoint_identity",
+    "train_dataset_identity",
+    "val_dataset_identity",
+    "matches_train_dataset",
+    "matches_val_dataset",
+    "objective_type",
+    "loss_type",
+    "max_shift_bp",
+    "row_indices",
+    "num_rows",
+    "reconstruction_loss",
+    "unaligned_reconstruction_mse",
+    "reconstruction_losses_file",
+    "unaligned_reconstruction_mse_file",
+    "device",
+    "package_version",
+    "source_revision"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_file": {"type": "string", "pattern": "^/"},
+    "checkpoint_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "train_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "val_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "matches_train_dataset": {"type": "boolean"},
+    "matches_val_dataset": {"type": "boolean"},
+    "objective_type": {"enum": ["reconstruction"]},
+    "loss_type": {"enum": ["mse", "alignment_tolerant_mse"]},
+    "max_shift_bp": {"type": ["integer", "null"], "minimum": 0},
+    "row_indices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "integer", "minimum": 0}
+    },
+    "num_rows": {"type": "integer", "minimum": 1},
+    "reconstruction_loss": {"type": "number", "minimum": 0},
+    "unaligned_reconstruction_mse": {"type": "number", "minimum": 0},
+    "reconstruction_losses_file": {"type": "string", "pattern": "^/"},
+    "unaligned_reconstruction_mse_file": {"type": "string", "pattern": "^/"},
+    "device": {"enum": ["cuda", "cpu"]},
+    "package_version": {"type": "string", "minLength": 1},
+    "source_revision": {
+      "anyOf": [
+        {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"loss_type": {"const": "alignment_tolerant_mse"}}},
+      "then": {"properties": {"max_shift_bp": {"type": "integer"}}},
+      "else": {"properties": {"max_shift_bp": {"type": "null"}}}
+    }
+  ]
+}
