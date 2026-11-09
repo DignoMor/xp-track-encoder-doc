@@ -6,13 +6,14 @@
   "additionalProperties": false,
   "required": ["schema_version", "data", "architecture", "objective", "optimizer", "run"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dataset_path"],
+      "required": ["train_dataset_path", "val_dataset_path"],
       "properties": {
-        "dataset_path": {"type": "string", "pattern": "^/"}
+        "train_dataset_path": {"type": "string", "pattern": "^/"},
+        "val_dataset_path": {"type": "string", "pattern": "^/"}
       }
     },
     "architecture": {

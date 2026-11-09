@@ -41,6 +41,7 @@
     "orientation": {"const": "genomic"},
     "normalization": {"const": "joint_sum"},
     "split": {
+      "description": "Row-aligned uint8 split assignment (0 train, 1 val, 2 test). Used only to carve the output into one processed dataset per nonempty split; never published.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "path"],
@@ -49,6 +50,10 @@
         "path": {"type": "string", "pattern": "^/"}
       }
     },
-    "output_dir": {"type": "string", "pattern": "^/"}
+    "output_dir": {
+      "description": "Empty or absent directory that receives train/, val/, and test/ processed datasets (only splits with rows) and an informational preparation.json.",
+      "type": "string",
+      "pattern": "^/"
+    }
   }
 }

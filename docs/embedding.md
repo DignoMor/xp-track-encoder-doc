@@ -11,11 +11,13 @@ joins back to the correct genomic element.
 ## What you need
 
 - **A processed dataset directory** holding `dataset.json`, `signals.npy`,
-  the copied region table, and `split.npy`. Confirm the element count, channel
-  names, and window length in `dataset.json` before exporting.
+  the region table, and `source_rows.npy`, such as the `test/` directory of
+  your preparation. Any processed dataset that fits the encoder can be
+  exported. Confirm the element count, channel names, and window length in
+  `dataset.json` before exporting.
 - **A compatible encoder artifact**: the trained run directory holding
   `encoder.json` plus `encoder.pt`. The artifact derives from the
-  validation-selected checkpoint and carries only the state and metadata
+  val-selected full checkpoint and carries only the state and metadata
   required for inference — no decoder or optimizer state.
 - **An empty output destination.** Export never merges into or overwrites
   existing outputs.
@@ -43,7 +45,7 @@ Pass the dataset directory, the encoder artifact location, and the output
 directory. All three arguments are required and every path is absolute:
 
 ```bash
-track-encoder embed --dataset /absolute/path/to/northwood_dataset --checkpoint /absolute/path/to/northwood_run --output /absolute/path/to/northwood_embeddings
+track-encoder embed --dataset /absolute/path/to/northwood_prepared/test --checkpoint /absolute/path/to/northwood_run --output /absolute/path/to/northwood_embeddings
 ```
 
 `--dataset` is the processed-dataset directory. `--checkpoint` is the trained
@@ -58,8 +60,8 @@ traceback. Export runs the encoder over every processed element in order.
 ## Compatibility and refusal
 
 Export compares content, not filenames. It recomputes the SHA-256 dataset
-identity over canonical metadata and the region, signal, and split contents
-and compares it with the identity recorded in `dataset.json`; it verifies the
+identity over canonical metadata and the region and signal contents and
+compares it with the identity recorded in `dataset.json`; it verifies the
 encoder identity on load in the same way. Changed content therefore fails even
 when the path is unchanged. The export refuses incompatible inputs instead of
 producing silently misaligned embeddings:
@@ -67,8 +69,10 @@ producing silently misaligned embeddings:
 - Dataset channels, in declared order, must equal the encoder channels.
 - Dataset window length, orientation, and normalization must equal the
   encoder's recorded values.
-- The dataset manifest must carry schema version `1`, and its recomputed
-  content identity must match the recorded identity.
+- The dataset manifest must carry schema version `2`, and its recomputed
+  content identity must match the recorded identity. Datasets prepared by
+  earlier releases are rejected by field `schema_version` and must be
+  prepared again.
 - The encoder manifest must validate, and its recorded identity must match
   the recomputed identity over its metadata and state bytes.
 - The output directory must be absent or empty.
@@ -93,8 +97,10 @@ count and the second axis equals the encoder's embedding dimension.
 ## Row alignment for joins
 
 Row `i` of `embeddings.npy` is the encoding of row `i` of `signals.npy`,
-which is the same genomic element as row `i` of the region table and row `i`
-of `split.npy`. Encoding visits rows in order and never reorders, filters, or
+which is the same genomic element as row `i` of the dataset's region table
+and of the copied region table. Row `i` of the dataset's `source_rows.npy`
+gives that element's row in your source region table. Encoding visits rows in
+order and never reorders, filters, or
 subsets them, so embeddings join to genomic elements by row position: attach
 column `i` of your own element-level table to row `i` of the embedding array,
 using the copied region table as the shared key. The recorded identities let

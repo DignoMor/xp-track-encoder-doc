@@ -10,6 +10,7 @@ substitution, and checks the concise ``llms.txt`` agent map.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -35,13 +36,38 @@ EXPECTED_PAGES = [
     "inputs.md",
     "preparation.md",
     "training.md",
+    "evaluation.md",
     "embedding.md",
     "reconstruction.md",
     "outputs.md",
 ]
 
 # llms.txt must link to each published guidance page (root = overview).
-LLMS_PAGE_PATHS = ["", "inputs/", "preparation/", "training/", "embedding/", "reconstruction/", "outputs/"]
+LLMS_PAGE_PATHS = [
+    "",
+    "inputs/",
+    "preparation/",
+    "training/",
+    "evaluation/",
+    "embedding/",
+    "reconstruction/",
+    "outputs/",
+]
+
+# Terms from the earlier single-dataset contract that must not survive in any
+# reader-facing source (pages and llms.txt). The pattern for the old training
+# field excludes the current train_/val_ prefixed fields.
+STALE_TERMS = {
+    "single dataset path field": re.compile(r"(?<![a-z_])dataset_path"),
+    "published split file": re.compile(r"split\.npy"),
+    "reconstruction row splits": re.compile(r"row_splits"),
+    "end-of-training test metric": re.compile(r"test_(reconstruction_loss|unaligned_reconstruction_mse)"),
+    "validation-named run field": re.compile(r"validation_(reconstruction_loss|unaligned_reconstruction_mse)"),
+    "single training dataset match": re.compile(r"(training_dataset_identity|matches_training_dataset)"),
+    "split named as a dataset": re.compile(
+        r"(?<![-\w])(test|validation|training) splits?(?!\s+assignment)\b", re.IGNORECASE
+    ),
+}
 
 
 class LinkCollector(HTMLParser):
@@ -106,6 +132,7 @@ def test_build_produces_all_nav_pages():
         site / "inputs" / "index.html",
         site / "preparation" / "index.html",
         site / "training" / "index.html",
+        site / "evaluation" / "index.html",
         site / "embedding" / "index.html",
         site / "reconstruction" / "index.html",
         site / "outputs" / "index.html",
@@ -203,6 +230,7 @@ def test_llms_txt_is_concise_link_map():
     assert "track-encoder train" not in text, "llms.txt must not duplicate command manuals"
     assert "track-encoder embed" not in text, "llms.txt must not duplicate command manuals"
     assert "track-encoder reconstruct" not in text, "llms.txt must not duplicate command manuals"
+    assert "track-encoder evaluate" not in text, "llms.txt must not duplicate command manuals"
     lines = text.splitlines()
     assert len(lines) <= 80, f"llms.txt must stay concise (found {len(lines)} lines)"
     assert len(text) <= 4000, f"llms.txt must stay concise (found {len(text)} chars)"
@@ -252,11 +280,17 @@ def _validate_against_schema(config: dict, schema: dict, label: str) -> None:
 
 
 def test_vendored_schemas_match_upstream_when_available():
-    workspace = Path("/local/storage/xp76/projects/track-encoder")
-    upstream_roots = [
-        workspace / "spec/contracts/schemas",
-        workspace / "code/src/track_encoder/schemas",
-    ]
+    # TRACK_ENCODER_SCHEMA_ROOTS (os.pathsep-separated) points the check at
+    # other checkouts, such as worktrees of an unreleased integration branch.
+    override = os.environ.get("TRACK_ENCODER_SCHEMA_ROOTS")
+    if override:
+        upstream_roots = [Path(root) for root in override.split(os.pathsep) if root]
+    else:
+        workspace = Path("/local/storage/xp76/projects/track-encoder")
+        upstream_roots = [
+            workspace / "spec/contracts/schemas",
+            workspace / "code/src/track_encoder/schemas",
+        ]
     available = [root for root in upstream_roots if root.is_dir()]
     if not available:
         pytest.skip("workspace schemas not available (CI); vendored copies are authoritative")
@@ -265,6 +299,7 @@ def test_vendored_schemas_match_upstream_when_available():
         "training-config.schema.json",
         "dilated-cnn-hp.schema.json",
         "reconstruction.schema.json",
+        "evaluation.schema.json",
     ]:
         vendored = json.loads((SCHEMAS_DIR / name).read_text(encoding="utf-8"))
         for root in available:
@@ -299,12 +334,16 @@ def test_illustrative_training_config_validates_after_substitution():
         "training.md must contain exactly two versioned illustrative documents "
         f"(fixed config + hyperparameters); found {len(with_version)}"
     )
-    fixed_raw = next(block for block in with_version if '"dataset_path"' in block)
+    fixed_raw = next(block for block in with_version if '"train_dataset_path"' in block)
     assert "/absolute/path/to/" in fixed_raw, "fixed config must use clearly marked absolute-path placeholders"
     fixed = json.loads(fixed_raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
     _validate_against_schema(fixed, _load_schema("training-config.schema.json"), "training config")
     assert fixed["run"]["device"] == "cuda", "training example must target CUDA"
-    assert "northwood" in fixed["data"]["dataset_path"], "training example must use fictional names"
+    data = fixed["data"]
+    assert data["train_dataset_path"].endswith("/train"), "training example must name the train dataset"
+    assert data["val_dataset_path"].endswith("/val"), "training example must name the val dataset"
+    assert "northwood" in data["train_dataset_path"], "training example must use fictional names"
+    assert "northwood" in data["val_dataset_path"], "training example must use fictional names"
     assert "northwood" in fixed["run"]["output_dir"], "training example must use fictional names"
 
 
@@ -325,8 +364,12 @@ def test_cli_and_outputs_documented_in_built_html():
     prep_html = (site / "preparation" / "index.html").read_text(encoding="utf-8")
     for snippet in [
         "track-encoder prepare --config",
+        "<code>train/</code>",
+        "<code>val/</code>",
+        "<code>test/</code>",
+        "<code>preparation.json</code>",
         "signals.npy",
-        "split.npy",
+        "source_rows.npy",
         "dataset.json",
     ]:
         assert snippet in prep_html, f"built preparation page is missing {snippet!r}"
@@ -371,10 +414,74 @@ def test_illustrative_reconstruction_manifest_validates_after_substitution():
     manifest = json.loads(raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
     _validate_against_schema(manifest, _load_schema("reconstruction.schema.json"), "reconstruction manifest")
     assert "northwood" in manifest["checkpoint_file"], "reconstruction example must use fictional names"
-    assert manifest["shape"][0] == len(manifest["row_indices"]) == len(manifest["row_splits"])
+    assert manifest["shape"][0] == len(manifest["row_indices"])
     assert manifest["row_indices"] == sorted(manifest["row_indices"]), "rows are written in ascending order"
     assert manifest["shape"][1] == len(manifest["channels"])
     assert manifest["shape"][2] == manifest["window_length"]
+
+
+def test_evaluation_command_documented_in_built_html():
+    site = build_site()
+    html = (site / "evaluation" / "index.html").read_text(encoding="utf-8")
+    for snippet in [
+        "track-encoder evaluate --dataset",
+        "<code>--checkpoint</code>",
+        "<code>--mask</code>",
+        "<code>--output</code>",
+        "<code>--device</code>",
+        "<code>--batch-size</code>",
+        "<code>--debug</code>",
+        "<code>evaluation.json</code>",
+        "<code>reconstruction_losses.npy</code>",
+        "<code>unaligned_reconstruction_mse.npy</code>",
+        "<code>best.pt</code>",
+        "<code>best_val_reconstruction_loss</code>",
+    ]:
+        assert snippet in html, f"built evaluation page is missing {snippet!r}"
+    for term in ["full checkpoint", "test dataset", "train dataset", "val dataset", "dataset identity"]:
+        assert term in html, f"evaluation page is missing glossary term {term!r}"
+
+
+def test_evaluation_page_names_every_manifest_field():
+    site = build_site()
+    html = (site / "evaluation" / "index.html").read_text(encoding="utf-8")
+    schema = _load_schema("evaluation.schema.json")
+    missing = [field for field in schema["required"] if f"<code>{field}</code>" not in html]
+    assert not missing, f"evaluation page does not describe manifest fields: {missing}"
+
+
+def test_illustrative_evaluation_manifest_validates_after_substitution():
+    blocks = _extract_json_blocks(DOCS / "evaluation.md")
+    raw = next((block for block in blocks if '"reconstruction_losses_file"' in block), None)
+    assert raw is not None, "evaluation.md must contain an illustrative evaluation.json"
+    assert "/absolute/path/to/" in raw, "manifest must use clearly marked absolute-path placeholders"
+    manifest = json.loads(raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
+    _validate_against_schema(manifest, _load_schema("evaluation.schema.json"), "evaluation manifest")
+    assert "northwood" in manifest["checkpoint_file"], "evaluation example must use fictional names"
+    assert manifest["num_rows"] == len(manifest["row_indices"])
+    assert manifest["row_indices"] == sorted(manifest["row_indices"]), "rows are scored in ascending order"
+    # The example scores a test dataset: it matches neither training input.
+    assert manifest["matches_train_dataset"] is False
+    assert manifest["matches_val_dataset"] is False
+
+
+def test_reader_facing_sources_use_the_split_dataset_contract():
+    sources = [*sorted(DOCS.glob("*.md")), LLMS_TXT]
+    failures: list[str] = []
+    for path in sources:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for label, pattern in STALE_TERMS.items():
+                if pattern.search(line):
+                    failures.append(f"{path.relative_to(REPO)}:{number}: {label}: {line.strip()}")
+    assert not failures, "stale earlier-contract terms remain:\n" + "\n".join(failures)
+
+
+def test_alpha_break_is_stated_for_earlier_artifacts():
+    site = build_site()
+    html = (site / "outputs" / "index.html").read_text(encoding="utf-8").lower()
+    for artifact in ["processed datasets", "training configurations", "full checkpoints"]:
+        assert artifact in html, f"outputs page must say earlier {artifact} need regenerating"
+    assert "regenerate" in html, "outputs page must tell readers to regenerate earlier artifacts"
 
 
 def test_embedding_page_explains_encoder_artifacts_cannot_reconstruct():

@@ -10,7 +10,6 @@
     "regions",
     "row_alignment",
     "row_indices",
-    "row_splits",
     "channels",
     "orientation",
     "normalization",
@@ -20,8 +19,10 @@
     "dataset_identity",
     "checkpoint_file",
     "checkpoint_identity",
-    "training_dataset_identity",
-    "matches_training_dataset",
+    "train_dataset_identity",
+    "val_dataset_identity",
+    "matches_train_dataset",
+    "matches_val_dataset",
     "objective_type",
     "loss_type",
     "max_shift_bp",
@@ -30,7 +31,7 @@
     "source_revision"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "reconstructions_file": {"type": "string", "pattern": "^/"},
     "regions": {
       "type": "object",
@@ -51,11 +52,6 @@
       "type": "array",
       "minItems": 1,
       "items": {"type": "integer", "minimum": 0}
-    },
-    "row_splits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {"enum": ["train", "validation", "test"]}
     },
     "channels": {
       "type": "array",
@@ -80,8 +76,10 @@
     "dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "checkpoint_file": {"type": "string", "pattern": "^/"},
     "checkpoint_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "training_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "matches_training_dataset": {"type": "boolean"},
+    "train_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "val_dataset_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "matches_train_dataset": {"type": "boolean"},
+    "matches_val_dataset": {"type": "boolean"},
     "objective_type": {"enum": ["reconstruction"]},
     "loss_type": {"enum": ["mse", "alignment_tolerant_mse"]},
     "max_shift_bp": {"type": ["integer", "null"], "minimum": 0},

@@ -12,21 +12,21 @@ the matching rows of `signals.npy` directly.
 Reconstruction performs no training, checkpoint selection, alignment, or
 scoring. It never computes a loss or aggregate metric, never modifies the
 checkpoint or its run directory, and writes nothing outside the output
-directory. Held-out scores remain the ones training recorded in
-`summary.json`.
+directory. To score a full checkpoint on a dataset, use
+[Evaluation](evaluation.md).
 
 ## What you need
 
 - **A full checkpoint file** written by `track-encoder train`, such as the
-  validation-selected `best.pt` or the most recent `latest.pt`. Name the file
+  val-selected `best.pt` or the most recent `latest.pt`. Name the file
   itself: the command never chooses a checkpoint from a run directory. The
   encoder and decoder are rebuilt from the checkpoint's own resolved
   experiment and saved state, so no training configuration, hyperparameter
-  document, or training dataset path is needed.
+  document, or train or val dataset path is needed.
 - **A processed dataset directory** holding `dataset.json`, `signals.npy`,
-  the region table, and `split.npy`. It may be the checkpoint's training
-  dataset or a separately prepared dataset that fits the checkpoint (see
-  [Compatibility](#compatibility)).
+  the region table, and `source_rows.npy`. It may be the checkpoint's train
+  or val dataset, a test dataset, or a separately prepared dataset that fits
+  the checkpoint (see [Compatibility](#compatibility)).
 - **A boolean mask** selecting the element examples to reconstruct (see
   [Select element examples](#select-element-examples)).
 - **An empty output destination.** Reconstruction never merges into or
@@ -38,13 +38,15 @@ reconstructions; [Embedding](embedding.md) is its consumer.
 
 Both `mse` and `alignment_tolerant_mse` checkpoints are accepted. A checkpoint
 must follow the current training contract, including an explicit
-`objective.loss.type`; checkpoints that predate it are rejected with the
+`objective.loss.type` and both `train_dataset_identity` and
+`val_dataset_identity`; checkpoints from earlier releases are rejected with the
 missing field named, and there is no fallback.
 
 ## Select element examples
 
 The selection is an RGTools boolean mask in the xp-genomic-tools
-boolean-mask format, aligned to the processed dataset's rows:
+boolean-mask format, aligned to the rows of the processed dataset you
+pass:
 
 - A `.npy` file, or a `.npz` archive holding exactly one array (any member
   name). The container is recognized by content, not by file extension.
@@ -55,10 +57,12 @@ boolean-mask format, aligned to the processed dataset's rows:
 - At least one `True` value.
 
 Mask row `i` selects dataset row `i`. The mask is a row-aligned array, not a
-region table; no region format is interpreted. Rows may come from any split,
-so choosing held-out element examples is your analysis decision; each
-selected row's split is recorded in the output manifest. Every mask problem is
-reported against the mask file before the checkpoint is loaded.
+region table; no region format is interpreted. Every row of a processed
+dataset belongs to it, so to reconstruct element examples the model neither
+fit nor was selected on, pass the test dataset and select its rows. A mask
+whose length is not this dataset's element count, such as one built for the
+train dataset, is refused. Every mask problem is reported against the mask
+file before the checkpoint is loaded.
 
 ## Run reconstruction
 
@@ -66,7 +70,7 @@ Pass the dataset directory, the full checkpoint file, the mask, and the output
 directory. All four are required and every path is absolute:
 
 ```bash
-track-encoder reconstruct --dataset /absolute/path/to/northwood_dataset --checkpoint /absolute/path/to/northwood_run/best.pt --mask /absolute/path/to/northwood_heldout_mask.npy --output /absolute/path/to/northwood_reconstructions
+track-encoder reconstruct --dataset /absolute/path/to/northwood_prepared/test --checkpoint /absolute/path/to/northwood_run/best.pt --mask /absolute/path/to/northwood_test_mask.npy --output /absolute/path/to/northwood_reconstructions
 ```
 
 | Flag | Required | Default | Meaning |
@@ -99,22 +103,23 @@ manifest.
 ## Compatibility
 
 The processed dataset passes the same validity checks as embedding export:
-`dataset.json` must carry schema version `1`, and the **dataset identity**
+`dataset.json` must carry schema version `2`, and the **dataset identity**
 recomputed over its content must match the recorded identity, so a changed or
 hand-edited dataset is refused even at an unchanged path.
 
-The dataset need not be the checkpoint's training dataset. Its channel count
-and window length must match the encoder input the full checkpoint was trained
-for; a mismatch is reported by field with the expected (checkpoint) and actual
-(dataset) values before any inference. The manifest records the checkpoint's
-`training_dataset_identity` and `matches_training_dataset`, which is `true`
-only when the dataset identity equals it.
+The dataset need not be the checkpoint's train or val dataset. Its channel
+count and window length must match the encoder input the full checkpoint was
+trained for; a mismatch is reported by field with the expected (checkpoint)
+and actual (dataset) values before any inference. The manifest records the
+checkpoint's `train_dataset_identity` and `val_dataset_identity`, with
+`matches_train_dataset` `true` only when the dataset identity equals the
+first and `matches_val_dataset` `true` only when it equals the second.
 
 Channel names and orientation cannot be verified against a checkpoint. They
 are copied from `dataset.json` into the
 manifest, but **channel semantics and orientation are your responsibility**:
 a separately prepared dataset must list the same tracks in the same order, in
-the same orientation, as the training dataset for its reconstructions to be
+the same orientation, as the train dataset for its reconstructions to be
 meaningful.
 
 ## Interpreting reconstructions
@@ -150,31 +155,32 @@ indexing `signals.npy` with the recorded `row_indices`: row `k` of
 `reconstructions.npy` reconstructs row `row_indices[k]` of `signals.npy`, and
 is the same genomic element as row `k` of the written region table.
 
-An illustrative `reconstruction.json` from an `mse` checkpoint, with
-placeholder identities:
+An illustrative `reconstruction.json` from an `mse` checkpoint applied to its
+test dataset, with placeholder identities:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "reconstructions_file": "/absolute/path/to/northwood_reconstructions/reconstructions.npy",
   "regions": {
-    "path": "/absolute/path/to/northwood_reconstructions/northwood_elements.bed3",
+    "path": "/absolute/path/to/northwood_reconstructions/regions.bed3",
     "type": "bed3"
   },
   "row_alignment": "selected_processed_dataset_rows",
-  "row_indices": [12, 305, 1840],
-  "row_splits": ["validation", "test", "test"],
+  "row_indices": [2, 5, 7],
   "channels": ["northwood_track_alpha", "northwood_track_beta"],
   "orientation": "genomic",
   "normalization": "joint_sum",
   "window_length": 1000,
   "shape": [3, 2, 1000],
   "dtype": "float32",
-  "dataset_identity": "0000000000000000000000000000000000000000000000000000000000000001",
+  "dataset_identity": "0000000000000000000000000000000000000000000000000000000000000003",
   "checkpoint_file": "/absolute/path/to/northwood_run/best.pt",
-  "checkpoint_identity": "0000000000000000000000000000000000000000000000000000000000000002",
-  "training_dataset_identity": "0000000000000000000000000000000000000000000000000000000000000001",
-  "matches_training_dataset": true,
+  "checkpoint_identity": "0000000000000000000000000000000000000000000000000000000000000004",
+  "train_dataset_identity": "0000000000000000000000000000000000000000000000000000000000000001",
+  "val_dataset_identity": "0000000000000000000000000000000000000000000000000000000000000002",
+  "matches_train_dataset": false,
+  "matches_val_dataset": false,
   "objective_type": "reconstruction",
   "loss_type": "mse",
   "max_shift_bp": null,
@@ -189,12 +195,11 @@ publication. Its fields:
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | Manifest schema version, `1` |
+| `schema_version` | Manifest schema version, `2` |
 | `reconstructions_file` | Absolute path of `reconstructions.npy` |
 | `regions` | Absolute `path` of the written region rows, plus the region `type`, or the absolute `schema` path of the copied custom region schema |
 | `row_alignment` | Always `selected_processed_dataset_rows` |
 | `row_indices` | Selected processed-dataset row indices, ascending, one per reconstruction |
-| `row_splits` | Split of each selected row: `train`, `validation`, or `test` |
 | `channels` | Channel names in order, copied from `dataset.json` |
 | `orientation` | Dataset orientation, `genomic` |
 | `normalization` | Dataset normalization, `joint_sum` |
@@ -204,8 +209,10 @@ publication. Its fields:
 | `dataset_identity` | Dataset identity of the reconstructed dataset |
 | `checkpoint_file` | Absolute path of the full checkpoint file used |
 | `checkpoint_identity` | SHA-256 of the checkpoint file bytes |
-| `training_dataset_identity` | Dataset identity recorded in the checkpoint at training time |
-| `matches_training_dataset` | Whether `dataset_identity` equals `training_dataset_identity` |
+| `train_dataset_identity` | Train dataset identity recorded in the checkpoint |
+| `val_dataset_identity` | Val dataset identity recorded in the checkpoint |
+| `matches_train_dataset` | Whether `dataset_identity` equals `train_dataset_identity` |
+| `matches_val_dataset` | Whether `dataset_identity` equals `val_dataset_identity` |
 | `objective_type` | Objective rebuilt from the checkpoint, `reconstruction` |
 | `loss_type` | Training loss: `mse` or `alignment_tolerant_mse` |
 | `max_shift_bp` | Effective trained radius for `alignment_tolerant_mse` (including the default of 50 when the configuration omitted it); `null` for `mse` |
@@ -228,7 +235,7 @@ output destination, dataset, mask, device, checkpoint, then fit.
 | Problem | Field | Message begins with |
 | --- | --- | --- |
 | Nonempty output destination | `output_dir` | `Output directory is not empty` |
-| Dataset schema version is not `1` | `schema_version` | `1 was expected` |
+| Dataset schema version is not `2`, such as a dataset prepared by an earlier release | `schema_version` | `Unsupported dataset schema version` |
 | Dataset content changed since preparation | `identity` | `Dataset content identity mismatch` |
 | Mask dtype is not `bool` | `mask` | `Mask must have NumPy bool dtype` |
 | Mask shape or length does not fit the dataset | `mask` | `Mask shape ... does not match dataset rows` |
@@ -241,7 +248,7 @@ output destination, dataset, mask, device, checkpoint, then fit.
 | Checkpoint is `encoder.pt` | `checkpoint` | `Got encoder-only state, not a full checkpoint` |
 | Checkpoint file does not exist | `checkpoint` | `Full checkpoint file not found` |
 | File is not a checkpoint written by `train` | `checkpoint` | `Not a full checkpoint written by train` |
-| Checkpoint predates the current contract | first missing field, such as `objective.loss.type` | `Checkpoint is missing current-contract content` |
+| Checkpoint predates the current contract | first missing field, such as `objective.loss.type` or `train_dataset_identity` | `Checkpoint is missing current-contract content` |
 | `mse` checkpoint carries an alignment radius | `objective.loss.max_shift_bp` | `Checkpoint loss settings are not current-contract: mse takes no max_shift_bp` |
 | Saved state does not fit the checkpoint's resolved architecture | `encoder_state` or `objective_state` | `Saved state does not fit the checkpoint's resolved architecture` |
 | Objective type unknown | `objective.type` | `Unsupported objective type` |

@@ -1,21 +1,26 @@
 # Track Encoder
 
-Current release: 0.1.0a2 (alpha).
+Current release: 0.1.0a3 (alpha).
 
 Track Encoder learns compact fixed-length embeddings of genomic signal
 associated with researcher-selected genomic elements. The researcher supplies
-all inputs (genomic elements, signal tracks, split assignments, reference
-FASTA); preparation, reconstruction training (CUDA), and embedding export are
-the three supported stages, and reconstruction of selected element examples
-from a full checkpoint (CUDA or CPU) inspects a trained model. This file is a link map only; the pages below are
-the complete guidance.
+all inputs (genomic elements, signal tracks, a split assignment, reference
+FASTA). Preparation publishes each split as its own processed dataset (a train
+dataset, a val dataset, and a test dataset); reconstruction training (CUDA)
+fits the train dataset and selects its full checkpoint on the val dataset;
+evaluation (CUDA or CPU) scores a full checkpoint on any compatible dataset,
+typically the test dataset; embedding export and reconstruction of selected
+element examples use the trained model. Datasets, training configurations, and
+checkpoints from earlier releases must be regenerated. This file is a link map
+only; the pages below are the complete guidance.
 
 ## Docs
 
 - [Overview](https://dignomor.github.io/xp-track-encoder-doc/)
 - [Inputs](https://dignomor.github.io/xp-track-encoder-doc/inputs/)
 - [Preparation](https://dignomor.github.io/xp-track-encoder-doc/preparation/)
-- [Training](https://dignomor.github.io/xp-track-encoder-doc/training/)
+- [Training](https://dignomor.github.io/xp-track-encoder-doc/training/): train and val datasets, run artifacts
+- [Evaluation](https://dignomor.github.io/xp-track-encoder-doc/evaluation/): the `evaluate` command, test metrics from a full checkpoint
 - [Embedding](https://dignomor.github.io/xp-track-encoder-doc/embedding/)
 - [Reconstruction](https://dignomor.github.io/xp-track-encoder-doc/reconstruction/): the `reconstruct` command, from a full checkpoint and a boolean mask
 - [Outputs](https://dignomor.github.io/xp-track-encoder-doc/outputs/)
