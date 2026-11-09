@@ -10,6 +10,7 @@ substitution, and checks the concise ``llms.txt`` agent map.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -252,11 +253,17 @@ def _validate_against_schema(config: dict, schema: dict, label: str) -> None:
 
 
 def test_vendored_schemas_match_upstream_when_available():
-    workspace = Path("/local/storage/xp76/projects/track-encoder")
-    upstream_roots = [
-        workspace / "spec/contracts/schemas",
-        workspace / "code/src/track_encoder/schemas",
-    ]
+    # TRACK_ENCODER_SCHEMA_ROOTS (os.pathsep-separated) points the check at
+    # other checkouts, such as worktrees of an unreleased integration branch.
+    override = os.environ.get("TRACK_ENCODER_SCHEMA_ROOTS")
+    if override:
+        upstream_roots = [Path(root) for root in override.split(os.pathsep) if root]
+    else:
+        workspace = Path("/local/storage/xp76/projects/track-encoder")
+        upstream_roots = [
+            workspace / "spec/contracts/schemas",
+            workspace / "code/src/track_encoder/schemas",
+        ]
     available = [root for root in upstream_roots if root.is_dir()]
     if not available:
         pytest.skip("workspace schemas not available (CI); vendored copies are authoritative")
