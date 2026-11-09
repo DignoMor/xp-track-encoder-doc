@@ -82,8 +82,8 @@ For an `mse` checkpoint the two are equal. For an `alignment_tolerant_mse`
 checkpoint the loss can be lower, and the gap shows how much the alignment
 tolerance excuses.
 
-The aggregates are means over the selected rows, accumulated as training
-accumulates its val loss. Evaluating `best.pt` on the run's val dataset with
+The aggregates are the means of the per-row values written to the output
+files. Evaluating `best.pt` on the run's val dataset with
 the training batch size therefore reproduces `best_val_reconstruction_loss`
 from the run's `summary.json`, within training's numerical tolerance. Other
 batch sizes change the aggregates only within floating-point tolerance.
@@ -123,7 +123,7 @@ writes:
 Both per-row files are always written. Value `k` of each belongs to row
 `row_indices[k]` of the scored dataset; join it back to your source elements
 through that dataset's `source_rows.npy`. Their means equal the manifest
-aggregates up to floating-point summation order and `float32` storage.
+aggregates.
 
 An illustrative `evaluation.json` for `best.pt` of an `mse` run scored on its
 test dataset, with placeholder identities:
