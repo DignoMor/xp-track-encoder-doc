@@ -1,6 +1,6 @@
 # Track Encoder
 
-Current release: 0.1.0a3 (alpha).
+Current release: 0.1.0a4 (alpha).
 
 Track Encoder learns compact fixed-length embeddings of genomic signal
 associated with researcher-selected genomic elements. The researcher supplies
@@ -10,16 +10,19 @@ dataset, a val dataset, and a test dataset); reconstruction training (CUDA)
 fits the train dataset and selects its full checkpoint on the val dataset;
 evaluation (CUDA or CPU) scores a full checkpoint on any compatible dataset,
 typically the test dataset; embedding export and reconstruction of selected
-element examples use the trained model. Datasets, training configurations, and
-checkpoints from earlier releases must be regenerated. This file is a link map
-only; the pages below are the complete guidance.
+element examples use the trained model. Training configurations are version 3
+and may add an optional W&B tracking block (the wandb extra; credentials only
+through wandb login or WANDB_API_KEY), which mirrors per-epoch metrics without
+changing training results. Datasets, training configurations, and checkpoints
+from earlier releases must be regenerated or migrated; see Outputs. This file
+is a link map only; the pages below are the complete guidance.
 
 ## Docs
 
 - [Overview](https://dignomor.github.io/xp-track-encoder-doc/)
 - [Inputs](https://dignomor.github.io/xp-track-encoder-doc/inputs/)
 - [Preparation](https://dignomor.github.io/xp-track-encoder-doc/preparation/)
-- [Training](https://dignomor.github.io/xp-track-encoder-doc/training/): train and val datasets, run artifacts
+- [Training](https://dignomor.github.io/xp-track-encoder-doc/training/): train and val datasets, run artifacts, optional W&B tracking (Slurm and offline use)
 - [Evaluation](https://dignomor.github.io/xp-track-encoder-doc/evaluation/): the `evaluate` command, test metrics from a full checkpoint
 - [Embedding](https://dignomor.github.io/xp-track-encoder-doc/embedding/)
 - [Reconstruction](https://dignomor.github.io/xp-track-encoder-doc/reconstruction/): the `reconstruct` command, from a full checkpoint and a boolean mask

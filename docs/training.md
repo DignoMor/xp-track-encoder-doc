@@ -120,7 +120,7 @@ training configuration schema.
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "data": {
     "train_dataset_path": "/absolute/path/to/northwood_prepared/train",
     "val_dataset_path": "/absolute/path/to/northwood_prepared/val"
@@ -153,9 +153,14 @@ swapping the val dataset is a path change. The val dataset must agree with the
 train dataset on `channels`, `window_length`, `orientation`, `normalization`,
 and `dtype`; a disagreement is rejected naming that field. Both paths may name
 the same dataset, for example for an overfitting check. The configuration's
-`schema_version` is `2`: a configuration written for earlier releases, with
-schema version `1` and a single dataset path, is rejected by field and must
-be rewritten with both paths.
+`schema_version` is `3`. Any other version is rejected by field
+`schema_version`, with no fallback: a configuration with schema version `1`
+and a single dataset path must be rewritten with both paths, and a
+configuration with schema version `2` only needs its version set to `3`.
+Full checkpoints from runs whose configuration was version `2`
+cannot be resumed (resume rejects them by field `schema_version`), but they
+remain valid inputs to `embed` (through the run's
+encoder artifact), `reconstruct`, and `evaluate`.
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
 `reconstruction`, and `optimizer.type` is always `adamw` in this release.
@@ -296,7 +301,160 @@ experiment; a changed dataset is reported by its own field,
 earlier releases record a single dataset identity and are rejected by field
 `train_dataset_identity`, with no fallback. Resume
 identity includes the resolved effective loss radius, including the default
-50 bp, so changing the loss or radius is incompatible.
+50 bp, so changing the loss or radius is incompatible. A tracked run has further resume
+rules; see [Resume a tracked run](#resume-a-tracked-run).
+
+## Track a run with W&B
+
+Training can optionally mirror a run into a W&B (Weights & Biases) run so
+you can follow its metrics in a browser. Tracking is a mirror only: the run
+directory stays the source of truth, and tracking never changes numerics,
+determinism, checkpoint selection, or any artifact other than adding
+`tracking.json` and a `wandb/` directory.
+
+### Install the extra
+
+`wandb` is an optional dependency. Install the `wandb` extra into the same
+environment as Track Encoder, from your checkout of the code repository:
+
+```bash
+pip install -e '/absolute/path/to/xp-track-encoder[wandb]'
+```
+
+Without a `tracking` block, training never imports `wandb`, so untracked runs
+need neither the extra nor a W&B account.
+
+### The tracking block
+
+Enable tracking by adding an optional top-level `tracking` object to the
+fixed configuration `config.json`, beside `data` and `run`:
+
+```json
+{
+  "type": "wandb",
+  "project": "northwood-encoder",
+  "entity": "northwood-lab",
+  "run_name": "northwood-mse-seed11"
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `type` | yes | Always `wandb` |
+| `project` | yes | W&B project, a non-empty string |
+| `entity` | no | W&B entity (user or team); when omitted, W&B's default entity or `WANDB_ENTITY` is used |
+| `run_name` | no | Display name of the W&B run; when omitted, W&B chooses one (or uses `WANDB_NAME`) |
+
+Every field present must be a non-empty string, and unknown fields are
+rejected by field. The block belongs to `config.json` only and cannot be
+placed in `hp.json`.
+
+**Authentication** comes only from W&B's own mechanisms: run `wandb login`
+once on the machine, or set the `WANDB_API_KEY` environment variable in the
+job. Never put an API key in the configuration; it has no field for one, and
+credentials never appear in configuration or run artifacts.
+
+### What is logged
+
+After the CUDA and output-directory checks, and before the first epoch,
+training starts the W&B run with its local files under
+`<output_dir>/wandb/`. The W&B run configuration records the resolved
+experiment, `train_dataset_identity`, `val_dataset_identity`, and the fields
+of `environment.json`. After each epoch's `metrics.jsonl` record is written,
+its numeric fields `train_reconstruction_loss`, `val_reconstruction_loss`,
+`train_unaligned_reconstruction_mse`, `val_unaligned_reconstruction_mse`, and
+`elapsed_seconds` are logged with the epoch number as the W&B step; nothing is
+recomputed. The W&B run summary carries `best_val_reconstruction_loss`. W&B
+system metrics (GPU and CPU utilization) stay enabled.
+
+Not sent: the machine's hostname, W&B's own host metadata (operating system,
+command line, user name, and hardware description), source code and Git
+state, console output, and checkpoint identities. Checkpoints and other run
+artifacts are never uploaded.
+
+A fresh tracked run writes `tracking.json` to the run directory:
+
+| Field | Meaning |
+| --- | --- |
+| `run_id` | W&B run id, used to continue the same W&B run on resume |
+| `project` | W&B project the run was created in |
+| `entity` | W&B entity the run was created in, as resolved by W&B |
+
+### When tracking fails
+
+If `wandb` cannot be imported or the W&B run cannot be started, training
+fails by field `tracking` before any epoch, with no checkpoints or metrics.
+A fresh run starts the W&B run before writing its run inputs and
+`environment.json`, so a failed start removes only the `wandb/` directory it
+created, and the output directory itself if training created it and it is
+empty. Once the cause is fixed you can rerun the same command with the same output directory. A
+resume that fails this way leaves the run directory untouched.
+
+Once the W&B run has started, any tracking failure, such as a network
+outage, prints one warning to stderr and turns tracking off for the rest of
+that training run. Training continues unchanged: control flow, artifacts,
+and the run's result are the same as an untracked run.
+
+### Resume a tracked run
+
+The `tracking` block is part of the fixed configuration that resume compares
+exactly, with no exclusions. Adding, removing, or editing it, including only
+`run_name`, rejects resume as a configuration mismatch. A tracked resume also
+requires the run directory's `tracking.json`: a missing or unreadable
+sidecar, one without a run id, or one whose `project` differs from the
+configuration's is rejected by field `tracking`, as is a different `entity`
+when the configuration sets `entity`. When the configuration omits `entity`,
+only the project is compared, and resume continues in the entity recorded in
+`tracking.json`. Resume then continues the same W&B run
+(`resume="must"`) and logs only the epochs it trains, so the W&B steps stay
+contiguous; `tracking.json` is left unchanged.
+
+### Slurm job
+
+A batch job sets credentials through the environment and otherwise runs the
+ordinary training command. The scheduler options below are placeholders;
+use your cluster's partition and GPU syntax.
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=northwood-train
+#SBATCH --gres=gpu:1
+#SBATCH --time=12:00:00
+#SBATCH --output=/absolute/path/to/logs/northwood-train-%j.log
+
+set -euo pipefail
+# Read the key from a file only you can read; never write it into config.json.
+export WANDB_API_KEY="$(cat /absolute/path/to/.wandb_api_key)"
+
+track-encoder train \
+  --config /absolute/path/to/config.json \
+  --hp /absolute/path/to/hp.json
+```
+
+If the job was interrupted, resubmit it with
+`--resume /absolute/path/to/northwood_run/latest.pt` added to the same
+command; the W&B run continues where it stopped.
+
+### Offline nodes
+
+On compute nodes without network access, set `WANDB_MODE=offline`. Training
+honors it as is: W&B writes the run under `<output_dir>/wandb/` without
+contacting the server, and `tracking.json` is still written. Each offline
+run sits in `<output_dir>/wandb/offline-run-*`. Upload it later with `wandb sync`
+from a machine with network access that can read the run directory:
+
+```bash
+WANDB_MODE=offline track-encoder train \
+  --config /absolute/path/to/config.json \
+  --hp /absolute/path/to/hp.json
+
+# later, from a node with network access and a W&B login:
+wandb sync /absolute/path/to/northwood_run/wandb/offline-run-*
+```
+
+Tracking covers `train` only. Uploading checkpoints or files, sweeps, and
+tracking for `prepare`, `evaluate`, `embed`, or `reconstruct` are not
+supported.
 
 ## Alpha limits
 
@@ -304,7 +462,7 @@ To avoid mistaking plans for capabilities: the current framework trains one
 architecture (`dilated_cnn`) under one objective (full-window
 reconstruction) with one optimizer (`adamw`) through a transparent CUDA-only
 loop without mixed precision. There is no CPU training, no distributed
-training, no hyperparameter search orchestration, and no early stopping. Masking,
+training, no hyperparameter search orchestration (including W&B sweeps), and no early stopping. Masking,
 contrastive or generative latent formulations, embedding-stability evaluation,
 and downstream biological evaluation are out of scope, as summarized under
 [Outputs](outputs.md). Start from verified processed datasets (see

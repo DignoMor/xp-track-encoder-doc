@@ -1,6 +1,6 @@
 # Track Encoder
 
-**Current release: 0.1.0a3 (alpha).**
+**Current release: 0.1.0a4 (alpha).**
 
 Track Encoder learns compact representations of genomic signal associated with
 selected genomic regions. Each **genomic element** — a region on a reference
@@ -60,6 +60,9 @@ Training runs on CUDA, so choose a CUDA-capable machine before preparing a
 run. Preparation and embedding export do not train models, but the datasets
 you prepare here are consumed by CUDA training. Evaluation and reconstruction
 run on CUDA or CPU.
+
+Optional W&B tracking for training needs the `wandb` extra; see
+[Track a run with W&B](training.md#track-a-run-with-wb).
 
 ## Current scope
 

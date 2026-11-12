@@ -12,14 +12,17 @@ reconstructions of selected element examples from a full checkpoint (see
 ## Regenerate earlier artifacts
 
 This alpha release is a breaking change: splits are now standalone processed
-datasets, and evaluation is separate from training. Artifacts from earlier
+datasets, evaluation is separate from training, and the training
+configuration is now schema version `3`. Artifacts from earlier
 releases are rejected by the field that changed, with no fallback, so
 regenerate them:
 
 | Earlier artifact | Rejected by | What to do |
 | --- | --- | --- |
 | Processed datasets that kept every split in one directory | `schema_version` (dataset schema version `1`) | Run `prepare` again; it writes `train/`, `val/`, and `test/` datasets |
-| Training configurations with a single dataset path | that field, or `schema_version` (training configuration schema version `1`) | Set `schema_version` to `2` and name `data.train_dataset_path` and `data.val_dataset_path` |
+| Training configurations with a single dataset path | that field, or `schema_version` (training configuration schema version `1`) | Set `schema_version` to `3` and name `data.train_dataset_path` and `data.val_dataset_path` |
+| Training configurations with schema version `2` | `schema_version` | Set `schema_version` to `3`; nothing else changes |
+| Full checkpoints from a run whose configuration was version `2` | `schema_version`, on resume only | They cannot be resumed; `embed` (through the run's encoder artifact), `reconstruct`, and `evaluate` still accept them |
 | Full checkpoints with a single dataset identity | `train_dataset_identity` | Train again on the new datasets; resume, reconstruction, and evaluation all refuse them |
 | Test metrics in a run's `summary.json` | — | `summary.json` now holds only `best_val_reconstruction_loss` and `epochs`; run `evaluate` on the test dataset for test metrics |
 

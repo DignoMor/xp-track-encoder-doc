@@ -504,3 +504,83 @@ def test_no_bundled_input_data():
         and ".git" not in path.parts
     ]
     assert not bundled, "docs must not bundle input data files:\n" + "\n".join(bundled)
+
+
+def test_every_training_configuration_example_is_schema_version_3():
+    found = 0
+    for page in sorted(DOCS.glob("*.md")):
+        for block in re.findall(r"```json\n(.*?)```", page.read_text(encoding="utf-8"), re.DOTALL):
+            if '"train_dataset_path"' not in block:
+                continue
+            found += 1
+            config = json.loads(block)
+            assert config.get("schema_version") == 3, (
+                f"{page.name}: training configuration example must use schema_version 3"
+            )
+    assert found, "no training configuration example found"
+
+
+def test_schema_version_3_break_is_stated():
+    site = build_site()
+    for page in ["training", "outputs"]:
+        html = (site / page / "index.html").read_text(encoding="utf-8")
+        assert "version <code>2</code>" in html, f"{page} page must say version 2 is rejected"
+        for command in ["embed", "reconstruct", "evaluate"]:
+            assert f"<code>{command}</code>" in html, (
+                f"{page} page must say version 2 checkpoints still work for {command}"
+            )
+        assert "cannot be resumed" in html, f"{page} page must say version 2 checkpoints cannot be resumed"
+
+
+def test_tracked_training_config_validates_after_substitution():
+    blocks = _extract_json_blocks(DOCS / "training.md")
+    fixed_raw = next(block for block in blocks if '"train_dataset_path"' in block)
+    tracking_raw = next((block for block in blocks if '"wandb"' in block), None)
+    assert tracking_raw is not None, "training.md must contain an illustrative tracking block"
+    tracking = json.loads(tracking_raw)
+    assert set(tracking) <= {"type", "project", "entity", "run_name"}
+    assert "northwood" in tracking["project"], "tracking example must use fictional names"
+    fixed = json.loads(fixed_raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
+    fixed["tracking"] = tracking
+    _validate_against_schema(fixed, _load_schema("training-config.schema.json"), "tracked training config")
+
+
+def test_tracking_documented_in_built_html():
+    site = build_site()
+    html = (site / "training" / "index.html").read_text(encoding="utf-8")
+    for snippet in [
+        "[wandb]",
+        "<code>tracking</code>",
+        "<code>tracking.json</code>",
+        "wandb login",
+        "<code>WANDB_API_KEY</code>",
+        "#SBATCH",
+        "WANDB_MODE=offline",
+        "wandb sync",
+        "<code>resume=\"must\"</code>",
+        "hostname",
+        "console",
+        "one warning",
+        "host metadata",
+        "same output directory",
+        "<code>&lt;output_dir&gt;/wandb/offline-run-*</code>",
+    ]:
+        assert snippet in html, f"built training page is missing {snippet!r}"
+    # W&B is given the run directory and adds one wandb/ level itself.
+    assert "wandb/wandb" not in html, "offline runs sit directly under <output_dir>/wandb/"
+    for snippet in ["--resume", "--hp", "--config"]:
+        assert html.count(snippet) >= 2
+
+
+def test_tracking_is_called_wandb_tracking_not_experiment_tracking():
+    site = build_site()
+    for page in ("index.html", "training/index.html"):
+        html = (site / page).read_text(encoding="utf-8")
+        assert "experiment tracking" not in html.lower(), f"{page}: say W&B tracking (see the glossary)"
+
+
+def test_llms_txt_mentions_tracking_and_configuration_version():
+    text = LLMS_TXT.read_text(encoding="utf-8")
+    assert "W&amp;B" in text or "W&B" in text, "llms.txt must mention W&B tracking"
+    assert "tracking" in text, "llms.txt must mention optional tracking"
+    assert "version 3" in text, "llms.txt must state the current training configuration version"
