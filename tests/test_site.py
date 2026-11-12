@@ -561,7 +561,7 @@ def test_tracking_documented_in_built_html():
         "hostname",
         "console",
         "one warning",
-        "fresh output directory",
+        "same output directory",
         "<code>&lt;output_dir&gt;/wandb/offline-run-*</code>",
     ]:
         assert snippet in html, f"built training page is missing {snippet!r}"

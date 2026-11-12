@@ -382,10 +382,11 @@ A fresh tracked run writes `tracking.json` to the run directory:
 
 If `wandb` cannot be imported or the W&B run cannot be started, training
 fails by field `tracking` before any epoch, with no checkpoints or metrics.
-By then the run's setup files (`config.json`, `hp.json`,
-`resolved_experiment.json`, `environment.json`, and `wandb/`) are already in
-the output directory, and training refuses a nonempty output directory, so
-retry with a fresh output directory (or empty the old one).
+A fresh run first removes the setup files it had written (`config.json`,
+`hp.json`, `resolved_experiment.json`, `environment.json`, and `wandb/`), and
+the output directory itself if training created it, so once the cause is
+fixed you can rerun the same command with the same output directory. A
+resume that fails this way leaves the run directory untouched.
 
 Once the W&B run has started, any tracking failure, such as a network
 outage, prints one warning to stderr and turns tracking off for the rest of
