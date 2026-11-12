@@ -158,7 +158,8 @@ the same dataset, for example for an overfitting check. The configuration's
 and a single dataset path must be rewritten with both paths, and a
 configuration with schema version `2` only needs its version set to `3`.
 Full checkpoints from runs whose configuration was version `2`
-cannot be resumed, but they remain valid inputs to `embed` (through the run's
+cannot be resumed (resume rejects them by field `schema_version`), but they
+remain valid inputs to `embed` (through the run's
 encoder artifact), `reconstruct`, and `evaluate`.
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
@@ -383,10 +384,10 @@ A fresh tracked run writes `tracking.json` to the run directory:
 
 If `wandb` cannot be imported or the W&B run cannot be started, training
 fails by field `tracking` before any epoch, with no checkpoints or metrics.
-A fresh run first removes the setup files it had written (`config.json`,
-`hp.json`, `resolved_experiment.json`, `environment.json`, and `wandb/`), and
-the output directory itself if training created it, so once the cause is
-fixed you can rerun the same command with the same output directory. A
+A fresh run starts the W&B run before writing its run inputs and
+`environment.json`, so a failed start removes only the `wandb/` directory it
+created, and the output directory itself if training created it and it is
+empty. Once the cause is fixed you can rerun the same command with the same output directory. A
 resume that fails this way leaves the run directory untouched.
 
 Once the W&B run has started, any tracking failure, such as a network
