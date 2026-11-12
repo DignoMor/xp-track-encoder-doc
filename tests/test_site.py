@@ -561,6 +561,7 @@ def test_tracking_documented_in_built_html():
         "hostname",
         "console",
         "one warning",
+        "host metadata",
         "same output directory",
         "<code>&lt;output_dir&gt;/wandb/offline-run-*</code>",
     ]:

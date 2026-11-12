@@ -366,9 +366,10 @@ its numeric fields `train_reconstruction_loss`, `val_reconstruction_loss`,
 recomputed. The W&B run summary carries `best_val_reconstruction_loss`. W&B
 system metrics (GPU and CPU utilization) stay enabled.
 
-Not sent: the machine's hostname, source code and Git state, console output,
-and checkpoint identities. Checkpoints and other run artifacts are never
-uploaded.
+Not sent: the machine's hostname, W&B's own host metadata (operating system,
+command line, user name, and hardware description), source code and Git
+state, console output, and checkpoint identities. Checkpoints and other run
+artifacts are never uploaded.
 
 A fresh tracked run writes `tracking.json` to the run directory:
 
