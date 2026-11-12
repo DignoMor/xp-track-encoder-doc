@@ -436,9 +436,8 @@ command; the W&B run continues where it stopped.
 
 On compute nodes without network access, set `WANDB_MODE=offline`. Training
 honors it as is: W&B writes the run under `<output_dir>/wandb/` without
-contacting the server, and `tracking.json` is still written. W&B nests its
-own `wandb/` directory there, so each offline run sits in
-`<output_dir>/wandb/wandb/offline-run-*`. Upload it later with `wandb sync`
+contacting the server, and `tracking.json` is still written. Each offline
+run sits in `<output_dir>/wandb/offline-run-*`. Upload it later with `wandb sync`
 from a machine with network access that can read the run directory:
 
 ```bash
@@ -447,7 +446,7 @@ WANDB_MODE=offline track-encoder train \
   --hp /absolute/path/to/hp.json
 
 # later, from a node with network access and a W&B login:
-wandb sync /absolute/path/to/northwood_run/wandb/wandb/offline-run-*
+wandb sync /absolute/path/to/northwood_run/wandb/offline-run-*
 ```
 
 Tracking covers `train` only. Uploading checkpoints or files, sweeps, and

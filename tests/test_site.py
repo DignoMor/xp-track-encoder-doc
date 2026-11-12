@@ -562,8 +562,11 @@ def test_tracking_documented_in_built_html():
         "console",
         "one warning",
         "fresh output directory",
+        "<code>&lt;output_dir&gt;/wandb/offline-run-*</code>",
     ]:
         assert snippet in html, f"built training page is missing {snippet!r}"
+    # W&B is given the run directory and adds one wandb/ level itself.
+    assert "wandb/wandb" not in html, "offline runs sit directly under <output_dir>/wandb/"
     for snippet in ["--resume", "--hp", "--config"]:
         assert html.count(snippet) >= 2
 
