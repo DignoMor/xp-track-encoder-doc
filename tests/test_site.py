@@ -504,3 +504,29 @@ def test_no_bundled_input_data():
         and ".git" not in path.parts
     ]
     assert not bundled, "docs must not bundle input data files:\n" + "\n".join(bundled)
+
+
+def test_every_training_configuration_example_is_schema_version_3():
+    found = 0
+    for page in sorted(DOCS.glob("*.md")):
+        for block in re.findall(r"```json\n(.*?)```", page.read_text(encoding="utf-8"), re.DOTALL):
+            if '"train_dataset_path"' not in block:
+                continue
+            found += 1
+            config = json.loads(block)
+            assert config.get("schema_version") == 3, (
+                f"{page.name}: training configuration example must use schema_version 3"
+            )
+    assert found, "no training configuration example found"
+
+
+def test_schema_version_3_break_is_stated():
+    site = build_site()
+    for page in ["training", "outputs"]:
+        html = (site / page / "index.html").read_text(encoding="utf-8")
+        assert "version <code>2</code>" in html, f"{page} page must say version 2 is rejected"
+        for command in ["embed", "reconstruct", "evaluate"]:
+            assert f"<code>{command}</code>" in html, (
+                f"{page} page must say version 2 checkpoints still work for {command}"
+            )
+        assert "cannot be resumed" in html, f"{page} page must say version 2 checkpoints cannot be resumed"

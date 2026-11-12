@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "data", "architecture", "objective", "optimizer", "run"],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "data": {
       "type": "object",
       "additionalProperties": false,
@@ -74,6 +74,17 @@
         "epochs": {"type": "integer", "minimum": 1},
         "output_dir": {"type": "string", "pattern": "^/"},
         "device": {"const": "cuda"}
+      }
+    },
+    "tracking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "project"],
+      "properties": {
+        "type": {"const": "wandb"},
+        "project": {"type": "string", "minLength": 1},
+        "entity": {"type": "string", "minLength": 1},
+        "run_name": {"type": "string", "minLength": 1}
       }
     }
   }

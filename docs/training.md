@@ -120,7 +120,7 @@ training configuration schema.
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "data": {
     "train_dataset_path": "/absolute/path/to/northwood_prepared/train",
     "val_dataset_path": "/absolute/path/to/northwood_prepared/val"
@@ -153,9 +153,13 @@ swapping the val dataset is a path change. The val dataset must agree with the
 train dataset on `channels`, `window_length`, `orientation`, `normalization`,
 and `dtype`; a disagreement is rejected naming that field. Both paths may name
 the same dataset, for example for an overfitting check. The configuration's
-`schema_version` is `2`: a configuration written for earlier releases, with
-schema version `1` and a single dataset path, is rejected by field and must
-be rewritten with both paths.
+`schema_version` is `3`. Any other version is rejected by field
+`schema_version`, with no fallback: a configuration with schema version `1`
+and a single dataset path must be rewritten with both paths, and a
+configuration with schema version `2` only needs its version set to `3`.
+Full checkpoints from runs whose configuration was version `2`
+cannot be resumed, but they remain valid inputs to `embed` (through the run's
+encoder artifact), `reconstruct`, and `evaluate`.
 
 `architecture.type` is always `dilated_cnn`, `objective.type` is always
 `reconstruction`, and `optimizer.type` is always `adamw` in this release.
