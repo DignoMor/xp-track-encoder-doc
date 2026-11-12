@@ -1,6 +1,6 @@
 # Track Encoder
 
-**Current release: 0.1.0a3 (alpha).**
+**Current release: 0.1.0a4 (alpha).**
 
 Track Encoder learns compact representations of genomic signal associated with
 selected genomic regions. Each **genomic element** — a region on a reference
