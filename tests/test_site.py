@@ -530,3 +530,46 @@ def test_schema_version_3_break_is_stated():
                 f"{page} page must say version 2 checkpoints still work for {command}"
             )
         assert "cannot be resumed" in html, f"{page} page must say version 2 checkpoints cannot be resumed"
+
+
+def test_tracked_training_config_validates_after_substitution():
+    blocks = _extract_json_blocks(DOCS / "training.md")
+    fixed_raw = next(block for block in blocks if '"train_dataset_path"' in block)
+    tracking_raw = next((block for block in blocks if '"wandb"' in block), None)
+    assert tracking_raw is not None, "training.md must contain an illustrative tracking block"
+    tracking = json.loads(tracking_raw)
+    assert set(tracking) <= {"type", "project", "entity", "run_name"}
+    assert "northwood" in tracking["project"], "tracking example must use fictional names"
+    fixed = json.loads(fixed_raw.replace("/absolute/path/to/", "/tmp/track-encoder-docs-check/"))
+    fixed["tracking"] = tracking
+    _validate_against_schema(fixed, _load_schema("training-config.schema.json"), "tracked training config")
+
+
+def test_tracking_documented_in_built_html():
+    site = build_site()
+    html = (site / "training" / "index.html").read_text(encoding="utf-8")
+    for snippet in [
+        "[wandb]",
+        "<code>tracking</code>",
+        "<code>tracking.json</code>",
+        "wandb login",
+        "<code>WANDB_API_KEY</code>",
+        "#SBATCH",
+        "WANDB_MODE=offline",
+        "wandb sync",
+        "<code>resume=\"must\"</code>",
+        "hostname",
+        "console",
+        "one warning",
+        "fresh output directory",
+    ]:
+        assert snippet in html, f"built training page is missing {snippet!r}"
+    for snippet in ["--resume", "--hp", "--config"]:
+        assert html.count(snippet) >= 2
+
+
+def test_llms_txt_mentions_tracking_and_configuration_version():
+    text = LLMS_TXT.read_text(encoding="utf-8")
+    assert "W&amp;B" in text or "W&B" in text, "llms.txt must mention W&B tracking"
+    assert "tracking" in text, "llms.txt must mention optional tracking"
+    assert "version 3" in text, "llms.txt must state the current training configuration version"
