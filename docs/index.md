@@ -61,7 +61,7 @@ run. Preparation and embedding export do not train models, but the datasets
 you prepare here are consumed by CUDA training. Evaluation and reconstruction
 run on CUDA or CPU.
 
-Optional W&B experiment tracking for training needs the `wandb` extra; see
+Optional W&B tracking for training needs the `wandb` extra; see
 [Track a run with W&B](training.md#track-a-run-with-wb).
 
 ## Current scope

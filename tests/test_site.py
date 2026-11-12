@@ -572,6 +572,13 @@ def test_tracking_documented_in_built_html():
         assert html.count(snippet) >= 2
 
 
+def test_tracking_is_called_wandb_tracking_not_experiment_tracking():
+    site = build_site()
+    for page in ("index.html", "training/index.html"):
+        html = (site / page).read_text(encoding="utf-8")
+        assert "experiment tracking" not in html.lower(), f"{page}: say W&B tracking (see the glossary)"
+
+
 def test_llms_txt_mentions_tracking_and_configuration_version():
     text = LLMS_TXT.read_text(encoding="utf-8")
     assert "W&amp;B" in text or "W&B" in text, "llms.txt must mention W&B tracking"
